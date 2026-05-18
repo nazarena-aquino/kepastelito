@@ -7,7 +7,7 @@ const MENU = [
     name: "Pastelito de Membrillo",
     description: "Pastelito artesanal hojaldrado de dulce de membrillo. Unidad $1.200 | 1/2 docena $6.000 | Docena $10.000",
     category: "pastelitos",
-    image: "/pastelito.jpeg"
+    image: "/pastelito-membrillo.jpeg"
   },
   {
     id: "pastelito-batata",
@@ -21,25 +21,17 @@ const MENU = [
     name: "Medialuna Dulce",
     description: "Medialuna de manteca dulce, tierna y glaseada. Unidad $1.200 | 1/2 docena $6.000 | Docena $10.000",
     category: "medialunas",
-    image: "/medialuna.jpeg"
+    image: "/medialuna.jpeg",
+    soldOut: true
   }
 ];
 
 // Precio dinamico: 1-5 unidades $1200 c/u, 6 = $6000, 7-11 = $6000 + $1200 c/u extra, 12 = $10000, 13+ = $10000 + $1200 c/u extra
 const calculatePrice = (quantity) => {
-  // 1. Calculamos cuántas docenas completas entran
   const docenas = Math.floor(quantity / 12);
-  
-  // 2. Vemos cuántas unidades sobran después de sacar las docenas
   const restoDespuesDocenas = quantity % 12;
-  
-  // 3. De ese resto, vemos si entra exactamente una media docena (solo será 0 o 1)
   const mediasDocenas = Math.floor(restoDespuesDocenas / 6);
-  
-  // 4. El resto final son las unidades individuales
   const unidadesSueltas = restoDespuesDocenas % 6;
-  
-  // 5. Multiplicamos cada grupo por su precio y sumamos el total
   return (docenas * 10000) + (mediasDocenas * 6000) + (unidadesSueltas * 1200);
 };
 
@@ -60,7 +52,6 @@ export default function App() {
   const [payment, setPayment] = useState("efectivo");
   const [quantities, setQuantities] = useState({});
 
-  // Agrupar items del carrito por producto
   const groupedCart = cart.reduce((acc, item) => {
     const existing = acc.find(g => g.id === item.id);
     if (existing) {
@@ -72,7 +63,6 @@ export default function App() {
     return acc;
   }, []);
 
-  // Calcular subtotal con precios dinamicos
   const subtotal = groupedCart.reduce((acc, item) => acc + calculatePrice(item.quantity), 0);
 
   const getQuantity = (productId) => quantities[productId] || 1;
@@ -150,14 +140,10 @@ export default function App() {
       <nav className="navbar">
         <div className="brand" onClick={() => setPage("menu")}>
           <img 
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/356BDCD5-BD52-4EC3-A660-5357E89A7FF7_4_5005_c-A19AErt3RSt3lvls1GZfrpaEMGDjmn.jpeg" 
+            src="/logo-kepa-sin-fondo.png" 
             alt="Kepastelito Logo" 
             className="logo-img" 
           />
-          <div className="brand-text">
-            <span className="title">KEPASTELITO</span>
-            <span className="slogan">dulzura artesanal</span>
-          </div>
         </div>
         <button className="cart-btn" onClick={() => setPage("cart")}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -174,43 +160,93 @@ export default function App() {
         {page === "menu" && (
           <div className="product-grid">
             {MENU.map((product) => (
-              <div key={product.id} className="card">
-                <div className="card-img-wrapper">
-                  <img src={product.image} alt={product.name} className="card-img" />
+              <div key={product.id} className="card" style={product.soldOut ? { opacity: 0.75 } : {}}>
+                <div className="card-img-wrapper" style={{ position: 'relative' }}>
+                  <img src={product.image} alt={product.name} className="card-img" style={product.soldOut ? { filter: 'grayscale(40%)' } : {}} />
+                  {product.soldOut && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#fff',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      letterSpacing: '0.5px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                    }}>
+                      ¡Muy pronto!
+                    </div>
+                  )}
                 </div>
                 <div className="card-body">
                   <h3 className="card-title">{product.name}</h3>
                   <p className="card-desc">{product.description}</p>
+                  
                   <div className="card-footer">
-                    <span className="price">{formatPrice(calculatePrice(getQuantity(product.id)))}</span>
-                    <div className="quantity-selector">
-                      <button 
-                        className="qty-btn" 
-                        onClick={() => updateQuantity(product.id, -1)}
-                        disabled={getQuantity(product.id) <= 1}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                      </button>
-                      <span className="qty-value">{getQuantity(product.id)}</span>
-                      <button 
-                        className="qty-btn" 
-                        onClick={() => updateQuantity(product.id, 1)}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="12" y1="5" x2="12" y2="19"/>
-                          <line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                      </button>
-                    </div>
-                    <button className="btn-primary" onClick={() => addToCart(product)}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                      Agregar
-                    </button>
+                    {product.soldOut ? (
+                      <div style={{
+                        width: '100%',
+                        textAlign: 'center',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.07)',
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: '14px',
+                        fontStyle: 'italic'
+                      }}>
+                        Próximamente disponible 🥐
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '10px' }}>
+                          <span className="price">{formatPrice(calculatePrice(getQuantity(product.id)))}</span>
+                          
+                          <div className="quantity-selector">
+                            <button 
+                              className="qty-btn" 
+                              onClick={() => updateQuantity(product.id, -1)}
+                              disabled={getQuantity(product.id) <= 1}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                              </svg>
+                            </button>
+                            <span className="qty-value">{getQuantity(product.id)}</span>
+                            <button 
+                              className="qty-btn" 
+                              onClick={() => updateQuantity(product.id, 1)}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"/>
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {getQuantity(product.id) % 6 === 5 && (
+                          <div className="alerta-promo">
+                             ¡Agregá 1 más para precio promocional!
+                          </div>
+                        )}
+                        {getQuantity(product.id) % 6 === 0 && (
+                          <div className="alerta-promo alerta-aplicada">
+                             ¡Precio promocional aplicado!
+                          </div>
+                        )}
+
+                        <button className="btn-primary" onClick={() => addToCart(product)}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                          </svg>
+                          Agregar
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -233,39 +269,52 @@ export default function App() {
             ) : (
               <div className="cart-items">
                 {groupedCart.map((item) => (
-                  <div key={item.id} className="cart-row">
-                    <div className="item-name">
-                      {item.name}
-                    </div>
-                    <div className="item-actions">
-                      <div className="cart-qty-controls">
-                        <button 
-                          className="cart-qty-btn" 
-                          onClick={() => removeOneFromGroup(item.id)}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                          </svg>
-                        </button>
-                        <span className="cart-qty-value">{item.quantity}</span>
-                        <button 
-                          className="cart-qty-btn" 
-                          onClick={() => addOneToGroup(item.id)}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
+                  <div key={item.id} style={{ display: 'flex', flexDirection: 'column', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
+                    <div className="cart-row" style={{ borderBottom: 'none', paddingBottom: '0', marginBottom: '8px' }}>
+                      <div className="item-name">
+                        {item.name}
+                      </div>
+                      <div className="item-actions">
+                        <div className="cart-qty-controls">
+                          <button 
+                            className="cart-qty-btn" 
+                            onClick={() => removeOneFromGroup(item.id)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                          <span className="cart-qty-value">{item.quantity}</span>
+                          <button 
+                            className="cart-qty-btn" 
+                            onClick={() => addOneToGroup(item.id)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="12" y1="5" x2="12" y2="19"/>
+                              <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                          </button>
+                        </div>
+                        <span className="item-price">{formatPrice(calculatePrice(item.quantity))}</span>
+                        <button className="btn-remove" onClick={() => removeAllFromGroup(item.id)}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
                           </svg>
                         </button>
                       </div>
-                      <span className="item-price">{formatPrice(calculatePrice(item.quantity))}</span>
-                      <button className="btn-remove" onClick={() => removeAllFromGroup(item.id)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/>
-                          <line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
-                      </button>
                     </div>
+                    
+                    {item.quantity % 6 === 5 && (
+                      <div className="alerta-promo" style={{ width: '100%', fontSize: '12px', padding: '6px' }}>
+                         ¡Agregá 1 más para precio promocional!
+                      </div>
+                    )}
+                    {item.quantity % 6 === 0 && (
+                      <div className="alerta-promo alerta-aplicada" style={{ width: '100%', fontSize: '12px', padding: '6px' }}>
+                         ¡Precio promocional aplicado!
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
