@@ -40,7 +40,7 @@ const PAYMENTS = [
   { id: "transferencia", label: "Transferencia / QR", icon: "phone" }
 ];
 
-const WA_NUMBER = "5493705402315";
+const WA_NUMBER = "5493704628845";
 
 const formatPrice = (price) => `$${price.toLocaleString("es-AR")}`;
 
