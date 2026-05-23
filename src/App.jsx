@@ -62,27 +62,117 @@ const PAYMENTS = [
 const WA_NUMBER = "5493704628845";
 const formatPrice = (price) => `$${price.toLocaleString("es-AR")}`;
 
-// Helpers para persistir estado en sessionStorage
+// Limpiar todo el sessionStorage de la app
+const clearAppState = () => {
+  ["kp_page", "kp_cart", "kp_delivery", "kp_address", "kp_payment"].forEach(k => {
+    try { sessionStorage.removeItem(k); } catch {}
+  });
+};
+
 const saveState = (key, value) => {
   try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
 };
+
+// loadState con validación: si falla o el valor no es del tipo esperado, devuelve fallback
 const loadState = (key, fallback) => {
   try {
     const item = sessionStorage.getItem(key);
-    return item !== null ? JSON.parse(item) : fallback;
-  } catch { return fallback; }
+    if (item === null) return fallback;
+    const parsed = JSON.parse(item);
+    // Validar que el tipo coincida con el fallback
+    if (typeof parsed !== typeof fallback) return fallback;
+    if (Array.isArray(fallback) && !Array.isArray(parsed)) return fallback;
+    return parsed;
+  } catch {
+    return fallback;
+  }
 };
 
-export default function App() {
-  // Inicializar cada estado desde sessionStorage si existe
-  const [page, setPage] = useState(() => loadState("kp_page", "menu"));
-  const [cart, setCart] = useState(() => loadState("kp_cart", []));
+// Validar que el carrito guardado tenga estructura correcta
+const loadCart = () => {
+  try {
+    const raw = sessionStorage.getItem("kp_cart");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Verificar que cada item tenga los campos mínimos necesarios
+    const valid = parsed.filter(item =>
+      item &&
+      typeof item.id === "string" &&
+      typeof item.name === "string" &&
+      typeof item.uid === "number"
+    );
+    return valid;
+  } catch {
+    return [];
+  }
+};
+
+// ErrorBoundary para atrapar crashes y mostrar pantalla de recuperación
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch() {
+    clearAppState();
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#1a0f0a',
+          color: '#f0e0d5',
+          padding: '32px',
+          textAlign: 'center',
+          gap: '24px'
+        }}>
+          <p style={{ fontSize: '16px', color: '#a08070' }}>
+            Algo salió mal. Tocá el botón para volver al inicio.
+          </p>
+          <button
+            onClick={() => { clearAppState(); window.location.reload(); }}
+            style={{
+              background: 'linear-gradient(135deg, #e07830, #f09050)',
+              color: '#fff',
+              border: 'none',
+              padding: '14px 32px',
+              borderRadius: '12px',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Volver al inicio
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function App() {
+  const [page, setPage] = useState(() => {
+    const saved = loadState("kp_page", "menu");
+    // Si la página guardada es "done", volver a menu directamente
+    // (el pedido ya fue enviado, no tiene sentido mostrar "done" al reabrir)
+    return saved === "done" ? "menu" : saved;
+  });
+  const [cart, setCart] = useState(loadCart);
   const [deliveryMode, setDeliveryMode] = useState(() => loadState("kp_delivery", "local"));
   const [address, setAddress] = useState(() => loadState("kp_address", ""));
   const [payment, setPayment] = useState(() => loadState("kp_payment", "efectivo"));
   const [quantities, setQuantities] = useState({});
 
-  // Persistir cambios automáticamente
   useEffect(() => { saveState("kp_page", page); }, [page]);
   useEffect(() => { saveState("kp_cart", cart); }, [cart]);
   useEffect(() => { saveState("kp_delivery", deliveryMode); }, [deliveryMode]);
@@ -131,7 +221,7 @@ export default function App() {
   const removeOneFromGroup = (productId) => {
     const itemToRemove = cart.find(item => item.id === productId);
     if (itemToRemove) {
-      setCart(cart.filter((item) => item.uid !== itemToRemove.uid));
+      setCart(cart.filter(item => item.uid !== itemToRemove.uid));
     }
   };
 
@@ -143,14 +233,12 @@ export default function App() {
   };
 
   const removeAllFromGroup = (productId) => {
-    setCart(cart.filter((item) => item.id !== productId));
+    setCart(cart.filter(item => item.id !== productId));
   };
 
   const goToMenu = () => {
     setCart([]);
-    // Limpiar sessionStorage al volver al inicio limpio
-    saveState("kp_cart", []);
-    saveState("kp_page", "menu");
+    clearAppState();
     setPage("menu");
   };
 
@@ -170,9 +258,7 @@ export default function App() {
     if (fullMixedDozens > 0) {
       lines.push("⭐ DESCUENTO DOCENA MIXTA (Batata + Membrillo):");
       lines.push(`   ${fullMixedDozens} docena(s) mixta(s) x $10.000`);
-      if (leftoverMixed > 0) {
-        lines.push(`   + ${leftoverMixed} unidad(es) suelta(s)`);
-      }
+      if (leftoverMixed > 0) lines.push(`   + ${leftoverMixed} unidad(es) suelta(s)`);
       lines.push("");
     }
 
@@ -187,25 +273,26 @@ export default function App() {
       lines.push(`Direccion del local: Paraguay 169`);
     }
 
-    lines.push(`Forma de pago: ${PAYMENTS.find((p) => p.id === payment).label}`);
+    lines.push(`Forma de pago: ${PAYMENTS.find(p => p.id === payment).label}`);
     lines.push("------------------------");
     lines.push("");
     lines.push("Gracias por tu pedido!");
 
     const text = encodeURIComponent(lines.join("\n"));
-    window.open(`https://wa.me/${WA_NUMBER}?text=${text}`, "_blank");
+
+    // Limpiar estado ANTES de abrir WhatsApp para que al volver muestre menu limpio
+    clearAppState();
+    setCart([]);
     setPage("done");
+
+    window.open(`https://wa.me/${WA_NUMBER}?text=${text}`, "_blank");
   };
 
   return (
     <div className="app-container">
       <nav className="navbar">
         <div className="brand" onClick={() => setPage("menu")}>
-          <img 
-            src="/logo-kepa-sin-fondo.png" 
-            alt="Kepastelito Logo" 
-            className="logo-img" 
-          />
+          <img src="/logo-kepa-sin-fondo.png" alt="Kepastelito Logo" className="logo-img" />
         </div>
         <button className="cart-btn" onClick={() => setPage("cart")}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -213,7 +300,7 @@ export default function App() {
             <circle cx="20" cy="21" r="1"/>
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
           </svg>
-          Ver Pedido 
+          Ver Pedido
           {cart.length > 0 && <span className="badge">{cart.length}</span>}
         </button>
       </nav>
@@ -227,17 +314,11 @@ export default function App() {
                   <img src={product.image} alt={product.name} className="card-img" style={product.soldOut ? { filter: 'grayscale(40%)' } : {}} />
                   {product.soldOut && (
                     <div style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '12px',
+                      position: 'absolute', top: '12px', right: '12px',
                       background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                      color: '#fff',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      padding: '4px 10px',
-                      borderRadius: '20px',
-                      letterSpacing: '0.5px',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+                      color: '#fff', fontWeight: '700', fontSize: '13px',
+                      padding: '4px 10px', borderRadius: '20px',
+                      letterSpacing: '0.5px', boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
                     }}>
                       ¡Muy pronto!
                     </div>
@@ -246,18 +327,12 @@ export default function App() {
                 <div className="card-body">
                   <h3 className="card-title">{product.name}</h3>
                   <p className="card-desc">{product.description}</p>
-                  
                   <div className="card-footer">
                     {product.soldOut ? (
                       <div style={{
-                        width: '100%',
-                        textAlign: 'center',
-                        padding: '10px',
-                        borderRadius: '8px',
-                        background: 'rgba(255,255,255,0.07)',
-                        color: 'rgba(255,255,255,0.5)',
-                        fontSize: '14px',
-                        fontStyle: 'italic'
+                        width: '100%', textAlign: 'center', padding: '10px',
+                        borderRadius: '8px', background: 'rgba(255,255,255,0.07)',
+                        color: 'rgba(255,255,255,0.5)', fontSize: '14px', fontStyle: 'italic'
                       }}>
                         Próximamente disponible 🥐
                       </div>
@@ -265,22 +340,14 @@ export default function App() {
                       <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '10px' }}>
                           <span className="price">{formatPrice(calculatePrice(getQuantity(product.id)))}</span>
-                          
                           <div className="quantity-selector">
-                            <button 
-                              className="qty-btn" 
-                              onClick={() => updateQuantity(product.id, -1)}
-                              disabled={getQuantity(product.id) <= 1}
-                            >
+                            <button className="qty-btn" onClick={() => updateQuantity(product.id, -1)} disabled={getQuantity(product.id) <= 1}>
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="5" y1="12" x2="19" y2="12"/>
                               </svg>
                             </button>
                             <span className="qty-value">{getQuantity(product.id)}</span>
-                            <button 
-                              className="qty-btn" 
-                              onClick={() => updateQuantity(product.id, 1)}
-                            >
+                            <button className="qty-btn" onClick={() => updateQuantity(product.id, 1)}>
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19"/>
                                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -288,18 +355,12 @@ export default function App() {
                             </button>
                           </div>
                         </div>
-
                         {getQuantity(product.id) % 6 === 5 && (
-                          <div className="alerta-promo">
-                             ¡Agregá 1 más para precio promocional!
-                          </div>
+                          <div className="alerta-promo">¡Agregá 1 más para precio promocional!</div>
                         )}
                         {getQuantity(product.id) % 6 === 0 && (
-                          <div className="alerta-promo alerta-aplicada">
-                             ¡Precio promocional aplicado!
-                          </div>
+                          <div className="alerta-promo alerta-aplicada">¡Precio promocional aplicado!</div>
                         )}
-
                         <button className="btn-primary" onClick={() => addToCart(product)}>
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
                             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -333,24 +394,16 @@ export default function App() {
                 {groupedCart.map((item) => (
                   <div key={item.id} style={{ display: 'flex', flexDirection: 'column', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px' }}>
                     <div className="cart-row" style={{ borderBottom: 'none', paddingBottom: '0', marginBottom: '8px' }}>
-                      <div className="item-name">
-                        {item.name}
-                      </div>
+                      <div className="item-name">{item.name}</div>
                       <div className="item-actions">
                         <div className="cart-qty-controls">
-                          <button 
-                            className="cart-qty-btn" 
-                            onClick={() => removeOneFromGroup(item.id)}
-                          >
+                          <button className="cart-qty-btn" onClick={() => removeOneFromGroup(item.id)}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <line x1="5" y1="12" x2="19" y2="12"/>
                             </svg>
                           </button>
                           <span className="cart-qty-value">{item.quantity}</span>
-                          <button 
-                            className="cart-qty-btn" 
-                            onClick={() => addOneToGroup(item.id)}
-                          >
+                          <button className="cart-qty-btn" onClick={() => addOneToGroup(item.id)}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <line x1="12" y1="5" x2="12" y2="19"/>
                               <line x1="5" y1="12" x2="19" y2="12"/>
@@ -366,20 +419,18 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    
                     {item.quantity % 6 === 5 && (
                       <div className="alerta-promo" style={{ width: '100%', fontSize: '12px', padding: '6px' }}>
-                         ¡Agregá 1 más para precio promocional!
+                        ¡Agregá 1 más para precio promocional!
                       </div>
                     )}
                     {item.quantity % 6 === 0 && (
                       <div className="alerta-promo alerta-aplicada" style={{ width: '100%', fontSize: '12px', padding: '6px' }}>
-                         ¡Precio promocional aplicado!
+                        ¡Precio promocional aplicado!
                       </div>
                     )}
                   </div>
                 ))}
-
                 {fullMixedDozens > 0 && (
                   <div className="alerta-promo alerta-aplicada" style={{ width: '100%', fontSize: '13px', padding: '8px 10px', marginBottom: '8px' }}>
                     ⭐ {fullMixedDozens} docena{fullMixedDozens > 1 ? 's' : ''} mixta{fullMixedDozens > 1 ? 's' : ''} (Batata + Membrillo) — precio docena aplicado
@@ -398,20 +449,14 @@ export default function App() {
                 <div className="form-group">
                   <label>Opciones de entrega</label>
                   <div className="toggle-group">
-                    <button 
-                      className={`btn-toggle ${deliveryMode === "local" ? "active" : ""}`}
-                      onClick={() => setDeliveryMode("local")}
-                    >
+                    <button className={`btn-toggle ${deliveryMode === "local" ? "active" : ""}`} onClick={() => setDeliveryMode("local")}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
                         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                         <polyline points="9 22 9 12 15 12 15 22"/>
                       </svg>
                       Retiro por el local
                     </button>
-                    <button 
-                      className={`btn-toggle ${deliveryMode === "envio" ? "active" : ""}`}
-                      onClick={() => setDeliveryMode("envio")}
-                    >
+                    <button className={`btn-toggle ${deliveryMode === "envio" ? "active" : ""}`} onClick={() => setDeliveryMode("envio")}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
                         <rect x="1" y="3" width="15" height="13"/>
                         <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
@@ -441,8 +486,8 @@ export default function App() {
                 {deliveryMode === "envio" && (
                   <div className="form-group">
                     <label>Direccion de entrega</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="input-text"
                       placeholder="Calle, numero, barrio..."
                       value={address}
@@ -456,11 +501,7 @@ export default function App() {
                   <label>Forma de pago</label>
                   <div className="toggle-group">
                     {PAYMENTS.map((method) => (
-                      <button 
-                        key={method.id}
-                        className={`btn-toggle ${payment === method.id ? "active" : ""}`}
-                        onClick={() => setPayment(method.id)}
-                      >
+                      <button key={method.id} className={`btn-toggle ${payment === method.id ? "active" : ""}`} onClick={() => setPayment(method.id)}>
                         {method.icon === "cash" ? (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
                             <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
@@ -483,8 +524,8 @@ export default function App() {
                   <span>{formatPrice(subtotal)}</span>
                 </div>
 
-                <button 
-                  className="btn-whatsapp" 
+                <button
+                  className="btn-whatsapp"
                   onClick={sendOrder}
                   disabled={deliveryMode === "envio" && address.trim() === ""}
                 >
@@ -524,5 +565,13 @@ export default function App() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Root() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   );
 }
