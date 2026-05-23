@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./index.css";
 
-// Detectar si estamos dentro del browser interno de Instagram (o Facebook)
-const isInstagramBrowser = () => {
-  const ua = navigator.userAgent || "";
-  return /Instagram|FBAN|FBAV|FB_IAB/.test(ua);
-};
-
 const MENU = [
   {
     id: "pastelito-membrillo",
@@ -66,7 +60,6 @@ const PAYMENTS = [
 ];
 
 const WA_NUMBER = "5493704628845";
-const APP_URL = "https://kepastelito.vercel.app";
 const formatPrice = (price) => `$${price.toLocaleString("es-AR")}`;
 
 const clearAppState = () => {
@@ -119,103 +112,6 @@ class ErrorBoundary extends React.Component {
     }
     return this.props.children;
   }
-}
-
-// Pantalla que se muestra cuando el usuario abre desde Instagram
-function InstagramWarning() {
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-
-  const handleOpen = () => {
-    // En iOS el truco es usar un link con safari-https:// o simplemente copiar la URL
-    if (isIOS) {
-      // Intentar abrir en Safari directamente
-      window.location.href = APP_URL;
-    } else {
-      window.open(APP_URL, "_blank");
-    }
-  };
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(180deg, #2a1810 0%, #1a0f0a 50%, #120a06 100%)',
-      color: '#f0e0d5',
-      padding: '32px',
-      textAlign: 'center',
-      gap: '28px'
-    }}>
-      <img src="/logo-kepa-sin-fondo.png" alt="Kepastelito" style={{ height: '80px', width: 'auto' }} />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: '32px', color: '#e07830', letterSpacing: '2px' }}>
-          Abrí en tu navegador
-        </h2>
-        <p style={{ fontSize: '15px', color: '#a08070', lineHeight: '1.6', maxWidth: '300px' }}>
-          Para hacer tu pedido por WhatsApp necesitás abrir esta página en Safari o Chrome.
-        </p>
-      </div>
-
-      {/* Instrucción visual */}
-      <div style={{
-        background: 'rgba(224, 120, 48, 0.1)',
-        border: '1px solid #c05820',
-        borderRadius: '16px',
-        padding: '20px 24px',
-        maxWidth: '320px',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left' }}>
-          <span style={{ fontSize: '24px' }}>1</span>
-          <span style={{ fontSize: '14px', color: '#c0a090' }}>
-            Tocá los <b style={{ color: '#e07830' }}>tres puntos</b> (···) arriba a la derecha
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left' }}>
-          <span style={{ fontSize: '24px' }}>2</span>
-          <span style={{ fontSize: '14px', color: '#c0a090' }}>
-            Elegí <b style={{ color: '#e07830' }}>"Abrir en Safari"</b> o <b style={{ color: '#e07830' }}>"Abrir en navegador"</b>
-          </span>
-        </div>
-      </div>
-
-      {/* Botón copiar URL como alternativa */}
-      <button
-        onClick={() => {
-          navigator.clipboard?.writeText(APP_URL).catch(() => {});
-          alert("¡Link copiado! Pegalo en Safari o Chrome.");
-        }}
-        style={{
-          background: 'linear-gradient(135deg, #e07830, #f09050)',
-          color: '#fff',
-          border: 'none',
-          padding: '16px 32px',
-          borderRadius: '14px',
-          fontSize: '15px',
-          fontWeight: '700',
-          cursor: 'pointer',
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
-          boxShadow: '0 4px 20px rgba(224,120,48,0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
-        Copiar link
-      </button>
-    </div>
-  );
 }
 
 function App() {
@@ -504,7 +400,9 @@ function App() {
 }
 
 export default function Root() {
-  // Si estamos en el browser de Instagram, mostrar pantalla de aviso
-  if (isInstagramBrowser()) return <InstagramWarning />;
-  return <ErrorBoundary><App /></ErrorBoundary>;
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
 }
