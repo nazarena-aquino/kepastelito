@@ -9,6 +9,17 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap" rel="stylesheet">
   </head>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      document.body.style.background = '#fff';
+      document.body.innerHTML = '<div style="padding:20px;color:red;font-family:monospace;font-size:13px">'
+        + '<b>ERROR:</b><br>' + msg + '<br><br>'
+        + '<b>Archivo:</b> ' + src + '<br>'
+        + '<b>Línea:</b> ' + line + ':' + col + '<br><br>'
+        + (err ? err.stack : '')
+        + '</div>';
+    };
+  </script>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
