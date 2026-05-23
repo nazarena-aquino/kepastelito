@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "./index.css";
 
 const MENU = [
@@ -17,6 +17,13 @@ const MENU = [
     image: "/pastelito.jpeg"
   },
   {
+    id: "pastelito-ddl",
+    name: "Pastelito de Dulce de Leche",
+    description: "Pastelito artesanal hojaldrado de dulce de leche. Unidad $1.200 | 1/2 docena $6.000 | Docena $10.000",
+    category: "pastelitos",
+    image: "/pastelito-ddl.jpeg"
+  },
+  {
     id: "medialuna-dulce",
     name: "Medialuna Dulce",
     description: "Medialuna de manteca dulce, tierna y glaseada. Unidad $1.200 | 1/2 docena $6.000 | Docena $10.000",
@@ -26,7 +33,6 @@ const MENU = [
   }
 ];
 
-// Precio dinamico: 1-5 unidades $1200 c/u, 6 = $6000, 7-11 = $6000 + $1200 c/u extra, 12 = $10000, 13+ = $10000 + $1200 c/u extra
 const calculatePrice = (quantity) => {
   const docenas = Math.floor(quantity / 12);
   const restoDespuesDocenas = quantity % 12;
@@ -35,22 +41,53 @@ const calculatePrice = (quantity) => {
   return (docenas * 10000) + (mediasDocenas * 6000) + (unidadesSueltas * 1200);
 };
 
+const MIXED_DOZEN_IDS = ["pastelito-membrillo", "pastelito-batata"];
+
+const calculateCartTotal = (groupedCart) => {
+  const mixedItems = groupedCart.filter(item => MIXED_DOZEN_IDS.includes(item.id));
+  const otherItems = groupedCart.filter(item => !MIXED_DOZEN_IDS.includes(item.id));
+  const totalMixedUnits = mixedItems.reduce((acc, item) => acc + item.quantity, 0);
+  const fullMixedDozens = Math.floor(totalMixedUnits / 12);
+  const leftoverMixed = totalMixedUnits % 12;
+  const mixedTotal = (fullMixedDozens * 10000) + calculatePrice(leftoverMixed);
+  const othersTotal = otherItems.reduce((acc, item) => acc + calculatePrice(item.quantity), 0);
+  return mixedTotal + othersTotal;
+};
+
 const PAYMENTS = [
   { id: "efectivo", label: "Efectivo", icon: "cash" },
   { id: "transferencia", label: "Transferencia / QR", icon: "phone" }
 ];
 
 const WA_NUMBER = "5493704628845";
-
 const formatPrice = (price) => `$${price.toLocaleString("es-AR")}`;
 
+// Helpers para persistir estado en sessionStorage
+const saveState = (key, value) => {
+  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+};
+const loadState = (key, fallback) => {
+  try {
+    const item = sessionStorage.getItem(key);
+    return item !== null ? JSON.parse(item) : fallback;
+  } catch { return fallback; }
+};
+
 export default function App() {
-  const [page, setPage] = useState("menu");
-  const [cart, setCart] = useState([]);
-  const [deliveryMode, setDeliveryMode] = useState("local");
-  const [address, setAddress] = useState("");
-  const [payment, setPayment] = useState("efectivo");
+  // Inicializar cada estado desde sessionStorage si existe
+  const [page, setPage] = useState(() => loadState("kp_page", "menu"));
+  const [cart, setCart] = useState(() => loadState("kp_cart", []));
+  const [deliveryMode, setDeliveryMode] = useState(() => loadState("kp_delivery", "local"));
+  const [address, setAddress] = useState(() => loadState("kp_address", ""));
+  const [payment, setPayment] = useState(() => loadState("kp_payment", "efectivo"));
   const [quantities, setQuantities] = useState({});
+
+  // Persistir cambios automáticamente
+  useEffect(() => { saveState("kp_page", page); }, [page]);
+  useEffect(() => { saveState("kp_cart", cart); }, [cart]);
+  useEffect(() => { saveState("kp_delivery", deliveryMode); }, [deliveryMode]);
+  useEffect(() => { saveState("kp_address", address); }, [address]);
+  useEffect(() => { saveState("kp_payment", payment); }, [payment]);
 
   const groupedCart = cart.reduce((acc, item) => {
     const existing = acc.find(g => g.id === item.id);
@@ -63,7 +100,13 @@ export default function App() {
     return acc;
   }, []);
 
-  const subtotal = groupedCart.reduce((acc, item) => acc + calculatePrice(item.quantity), 0);
+  const subtotal = calculateCartTotal(groupedCart);
+
+  const mixedUnits = groupedCart
+    .filter(item => MIXED_DOZEN_IDS.includes(item.id))
+    .reduce((acc, item) => acc + item.quantity, 0);
+  const fullMixedDozens = Math.floor(mixedUnits / 12);
+  const leftoverMixed = mixedUnits % 12;
 
   const getQuantity = (productId) => quantities[productId] || 1;
 
@@ -77,9 +120,11 @@ export default function App() {
 
   const addToCart = (product) => {
     const qty = getQuantity(product.id);
+    const newItems = [];
     for (let i = 0; i < qty; i++) {
-      setCart(prev => [...prev, { ...product, uid: Date.now() + Math.random() }]);
+      newItems.push({ ...product, uid: Date.now() + Math.random() });
     }
+    setCart(prev => [...prev, ...newItems]);
     setQuantities(prev => ({ ...prev, [product.id]: 1 }));
   };
 
@@ -101,6 +146,14 @@ export default function App() {
     setCart(cart.filter((item) => item.id !== productId));
   };
 
+  const goToMenu = () => {
+    setCart([]);
+    // Limpiar sessionStorage al volver al inicio limpio
+    saveState("kp_cart", []);
+    saveState("kp_page", "menu");
+    setPage("menu");
+  };
+
   const sendOrder = () => {
     const lines = [
       "* PEDIDO — KEPASTELITO *",
@@ -114,9 +167,18 @@ export default function App() {
       lines.push("");
     });
 
+    if (fullMixedDozens > 0) {
+      lines.push("⭐ DESCUENTO DOCENA MIXTA (Batata + Membrillo):");
+      lines.push(`   ${fullMixedDozens} docena(s) mixta(s) x $10.000`);
+      if (leftoverMixed > 0) {
+        lines.push(`   + ${leftoverMixed} unidad(es) suelta(s)`);
+      }
+      lines.push("");
+    }
+
     lines.push("------------------------");
-    lines.push(`Subtotal: ${formatPrice(subtotal)}`);
-    
+    lines.push(`TOTAL: ${formatPrice(subtotal)}`);
+
     if (deliveryMode === "envio") {
       lines.push(`Envio: A domicilio (Costo a coordinar)`);
       lines.push(`Direccion: ${address}`);
@@ -317,6 +379,17 @@ export default function App() {
                     )}
                   </div>
                 ))}
+
+                {fullMixedDozens > 0 && (
+                  <div className="alerta-promo alerta-aplicada" style={{ width: '100%', fontSize: '13px', padding: '8px 10px', marginBottom: '8px' }}>
+                    ⭐ {fullMixedDozens} docena{fullMixedDozens > 1 ? 's' : ''} mixta{fullMixedDozens > 1 ? 's' : ''} (Batata + Membrillo) — precio docena aplicado
+                  </div>
+                )}
+                {leftoverMixed > 0 && leftoverMixed >= 6 && (
+                  <div className="alerta-promo" style={{ width: '100%', fontSize: '13px', padding: '8px 10px', marginBottom: '8px' }}>
+                    🥐 ¡Agregá {12 - leftoverMixed} más entre Batata y Membrillo para precio docena mixta ($10.000)!
+                  </div>
+                )}
               </div>
             )}
 
@@ -440,7 +513,7 @@ export default function App() {
             </svg>
             <h2>Pedido enviado!</h2>
             <p>Se ha abierto WhatsApp con el detalle de tu pedido listo para enviar.<br/>Gracias por elegirnos!</p>
-            <button className="btn-primary" onClick={() => { setCart([]); setPage("menu"); }} style={{ marginTop: '16px' }}>
+            <button className="btn-primary" onClick={goToMenu} style={{ marginTop: '16px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', verticalAlign: 'middle' }}>
                 <line x1="19" y1="12" x2="5" y2="12"/>
                 <polyline points="12 19 5 12 12 5"/>
