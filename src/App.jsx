@@ -303,12 +303,12 @@ function App() {
                 ))}
                 {fullMixedDozens > 0 && (
                   <div className="alerta-promo alerta-aplicada" style={{ width: '100%', fontSize: '13px', padding: '8px 10px', marginBottom: '8px' }}>
-                    ⭐ {fullMixedDozens} docena{fullMixedDozens > 1 ? 's' : ''} mixta{fullMixedDozens > 1 ? 's' : ''} (Batata + Membrillo) — precio docena aplicado
+                     {fullMixedDozens} docena{fullMixedDozens > 1 ? 's' : ''} mixta{fullMixedDozens > 1 ? 's' : ''} (Batata + Membrillo) — precio docena aplicado
                   </div>
                 )}
                 {leftoverMixed > 0 && leftoverMixed >= 6 && (
                   <div className="alerta-promo" style={{ width: '100%', fontSize: '13px', padding: '8px 10px', marginBottom: '8px' }}>
-                    🥐 ¡Agregá {12 - leftoverMixed} más entre Batata y Membrillo para precio docena mixta ($10.000)!
+                     ¡Agregá {12 - leftoverMixed} más entre Batata y Membrillo para precio docena mixta ($10.000)!
                   </div>
                 )}
               </div>
